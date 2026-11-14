@@ -161,3 +161,173 @@ produce a wrong price.
 - Remove console output from the calculation.
 - Replace all three tests with ones that assert exact results, boundaries and failures, and use
   PIT to confirm they kill mutants.
+
+---
+
+# Decisions
+
+Added after the work was done. Sections 1 to 5 above are unchanged from the first commit.
+
+## 6. Result
+
+| Check | Starter | Now |
+| --- | --- | --- |
+| Tests | 3 pass | 60 pass |
+| Line / branch coverage (excluding `Demo`) | 20 of 27 lines, 6 of 12 branches | 100% / 100% |
+| PIT mutants killed | 3 of 18 (17%) | 18 of 18 (100%) |
+| Demo, unknown zone `MOON` | `0.0` | `no quote: Unknown zone: MOON` |
+| Demo, known zones | `50.0`, `967.5` | `50.00`, `967.50` (same prices) |
+
+All of it is reproduced by one command, `mvn verify`.
+
+## 7. Key design decisions
+
+**The rate source is injected (finding 3, §12.5).** `ShippingCalculator` takes a
+`RateRepository` in its constructor. This is the seam that made the unit tests possible: they
+pass a Mockito mock, the demo passes `InMemoryRateRepository.withCurrentZones()`.
+
+**A zone's rules live in one object, `ZonePricing` (finding 4, §12.2).** The repository used to
+return a bare rate while the calculator held each zone's fee in an `if` chain. Now the
+repository returns a `ZonePricing`, whose single method `baseCost(weightKg)` answers "what does
+it cost to carry this weight to this zone". `PerKilogramPricing(ratePerKg, handlingFee)` is the
+one implementation today's three zones need. The `if` chain is gone, and so is the duplicated
+zone knowledge.
+
+**The request is a validated value, `Shipment` (finding 2, §4.3).** A record whose constructor
+rejects a blank zone, a missing or non-positive weight and a missing service level. The
+calculator therefore never sees an invalid shipment and contains no validation code.
+`ServiceLevel` is an enum that carries its own multiplier, so `"EXPRES"` can no longer be
+silently charged as standard.
+
+**The calculator does one job (finding 5, §12.1, §4.4).** It combines base cost, heavy-item
+surcharge and service multiplier, and rounds. It does not print, validate or know any zone. Its
+remaining numbers are named constants (§3.4).
+
+**Money is `BigDecimal` (finding 7).** Results are rounded once, at the end, to two places,
+half up. Tests can assert exact amounts.
+
+**What I chose not to build (§2.2 YAGNI).** The heavy-item surcharge and the service multiplier
+are still fixed rules in `ShippingCalculator` and `ServiceLevel`. The brief announces a new
+zone, not a new surcharge or service level, so I did not add a plug-in mechanism for those.
+Zone codes stay exact-match strings: nothing in the brief says `"domestic"` should be accepted,
+and an explicit "unknown zone" is safer than guessing.
+
+**One package.** Thirteen small types in `com.tidewater.freight`; splitting them would add
+navigation without separating anything.
+
+## 8. How the design absorbs the new zone
+
+Three cases, none of which touches `ShippingCalculator`, `Shipment` or any existing zone:
+
+1. **A zone priced like the others** (rate per kg plus a fee): one new line in
+   `InMemoryRateRepository.withCurrentZones()`, for example
+   `"COASTAL", PerKilogramPricing.of("6.50", "4.00")`.
+2. **A zone with rules of its own** (a minimum charge, weight bands): one new class
+   implementing `ZonePricing`, registered the same way.
+3. **Rates that come from a database or a service**: a new `RateRepository` implementation
+   passed to the calculator's constructor.
+
+How I checked it, rather than asserting it:
+
+- `ShippingCostIntegrationTest.quotesANewZoneOnceItsPricingIsRegistered` builds a repository
+  containing a `COASTAL` zone and prices a shipment to it with the unmodified calculator.
+- `ShippingCalculatorTest.pricesAZoneWithItsOwnKindOfRuleWithoutAnyChangeToTheCalculator` gives
+  the calculator a `ZonePricing` that is not `PerKilogramPricing` at all (a flat price).
+
+Honest limit: case 1 edits `withCurrentZones()`. That method is a list of data, not logic, and
+an entry cannot be half-added the way the old "rate here, fee there" could.
+
+## 9. Exception handling
+
+| Failure | Before | Now |
+| --- | --- | --- |
+| Unknown zone | cost `0` | `UnknownZoneException` (carries the zone) |
+| Unknown service level | charged as standard | `UnknownServiceLevelException` (carries the code and the cause) |
+| Blank zone, missing or non-positive weight, missing service level | negative cost, or `0` | `InvalidShipmentException` with the reason |
+| Rate source throws something unexpected | cost `0` | `RateLookupException`, with the zone in the message and the original as cause (§6.3) |
+| Rate source returns `null` | cost `0` | `RateLookupException` |
+
+- All extend `FreightException`. The hierarchy has one purpose: a caller can tell "the request
+  was wrong" (`InvalidShipmentException` and its two subtypes) from "we could not answer"
+  (`RateLookupException`) with one `catch` each. They are unchecked because no caller can fix
+  either in code.
+- There are three `try`/`catch` blocks, each where something useful can be done (§6.1):
+  `ServiceLevel.fromCode` translates `IllegalArgumentException` into a domain exception;
+  `ShippingCalculator.findPricing` adds context to a rate-source failure and lets domain
+  exceptions through untouched; `Demo` is the top of the program and reports the failure to the
+  user.
+- No path returns a made-up value. `refusesToQuoteAnUnknownZoneInsteadOfQuotingZero` pins the
+  original bug.
+- Programming errors (a `null` shipment or repository, an invalid `PerKilogramPricing`) are
+  `NullPointerException` / `IllegalArgumentException`: they are bugs in the calling code, not
+  shipment failures, so they are deliberately outside the hierarchy.
+
+## 10. What I kept, fixed or rewrote from the AI
+
+| AI artefact | Decision | Why |
+| --- | --- | --- |
+| `RateRepository` interface | **Kept, changed** | The right abstraction, but unused. Now injected; returns `ZonePricing` instead of `double`. |
+| `InMemoryRateRepository` | **Fixed** | Its throw-on-unknown-zone behaviour was correct and is kept. Now holds full zone pricing, takes its data through the constructor, and throws `UnknownZoneException`. |
+| The pricing rules themselves (rates, fees, 30 kg / 20 surcharge, × 1.5) | **Kept** | They are the business rules and nothing says they are wrong. Checked: the demo and the integration table give the starter's prices (`50.00`, `967.50`). |
+| `ShippingCalculator.calculateCost` | **Rewritten** | Dependency, `if` chain, printing, catch-all and types all had to go; little survived beyond the order of the arithmetic. |
+| `Demo` | **Fixed** | Same three scenarios; now reports the unknown zone instead of printing `0.0`. |
+| `calculatesExpressCost` (mocked the class under test) | **Rewritten** | Replaced by `expressMultipliesTheFeeAndSurchargeAsWellAsTheRate`, which runs the real calculator and asserts `967.50`. |
+| `returnsACostForAShipment` (`assertNotNull` on a `double`) | **Rewritten** | Replaced by `includesTheZoneHandlingFee`, asserting `50.00`. |
+| `calculatesACost` (`assertTrue(cost > 0)`) | **Rewritten** | Replaced by `chargesTheZoneRateForEachKilogram`, asserting `50.00`. |
+
+How I checked the AI's code and my own: ran the starter first for a baseline; compared demo
+output before and after; and used PIT rather than coverage to judge the tests, because coverage
+was the measure the starter's tests were already good at faking.
+
+## 11. The test suite
+
+- `ShippingCalculatorTest`: the calculator alone, `RateRepository` mocked. Mockito only supplies
+  inputs (stubbed pricing, a stubbed failure); every assertion is on a returned cost or a thrown
+  exception. No test is satisfied by `verify(...)` alone.
+- `ShippingCostIntegrationTest`: real calculator and real rates, no mocks. A table of published
+  prices.
+- `ShipmentTest`, `ServiceLevelTest`, `PerKilogramPricingTest`, `InMemoryRateRepositoryTest`:
+  each class's own rules and failure cases.
+
+Which test catches a bug planted in a business rule:
+
+| Rule | Tests that fail if it changes |
+| --- | --- |
+| A zone's rate per kg or handling fee | `ShippingCostIntegrationTest.quotesThePublishedPrice`, `InMemoryRateRepositoryTest.holdsThePricingOfEachCurrentZone` |
+| Rate × weight + fee | `PerKilogramPricingTest.chargesTheRateForEachKilogramPlusTheHandlingFee` |
+| Heavy surcharge applies above 30 kg, not at 30 | `ShippingCalculatorTest.addsTheHeavyItemSurchargeOnlyAboveThirtyKilograms` (rows 29.99, 30, 30.01) |
+| Heavy surcharge is 20 | same test, rows 30.01 and 40 |
+| Express is × 1.5 | `ServiceLevelTest.expressAddsHalfAgain` |
+| Express multiplies fee and surcharge too (order of operations) | `ShippingCalculatorTest.expressMultipliesTheFeeAndSurchargeAsWellAsTheRate` |
+| Rounding to 2 places, half up | `ShippingCalculatorTest.roundsHalfAPesewaUp` |
+| Unknown zone is refused | `ShippingCostIntegrationTest.refusesToQuoteAnUnknownZoneInsteadOfQuotingZero` |
+| Weight must be positive | `ShipmentTest.rejectsAWeightThatIsNotPositive` |
+
+I tried one myself: changing the heavy-item check from `> 30` to `>= 30` failed
+`addsTheHeavyItemSurchargeOnlyAboveThirtyKilograms` (the 30 kg row) and
+`quotesThePublishedPrice` (INTERNATIONAL 30 kg). I then reverted it.
+
+## 12. One improvement beyond the brief: the build rejects hollow tests
+
+`mvn verify` now fails unless line and branch coverage are 100% (JaCoCo `check`) **and** every
+PIT mutant is killed (`mutationThreshold` 100). Both tools were in the starter's `pom.xml`, but
+only as reports nobody had to read.
+
+Why this one, for this code: the root problem I inherited was not a bad class, it was a green
+build that meant nothing. The AI's suite passed with 17% of mutants killed, and a coverage
+target alone would not have caught it (`assertNotNull(cost)` adds coverage). A mutation gate
+checks the thing §9 actually asks for, that an assertion would fail if the behaviour were wrong,
+and it checks it on every build, including for whoever adds the new zone. If their test executes
+the new pricing without asserting its result, the build breaks.
+
+Cost and limits: `mvn verify` is slower, because PIT re-runs tests against each of the 18
+mutants. `Demo` is excluded from both gates because it only prints. PIT's default mutators do
+not alter constants, so the exact values of rates and fees are protected by the price tables in
+the tests, not by the gate.
+
+## 13. Notes
+
+- Indentation is four spaces, as in the starter and the handbook's examples (§7.8 leaves the
+  width to the project); the column limit is 100 (§11.1).
+- Mockito prints a JDK warning about self-attaching its agent. It does not affect results; I
+  left the build configuration for it alone.

@@ -1,48 +1,49 @@
 # Tidewater Freight — Shipping Cost Service
 
-This is the starter repository for the **Code Quality & Testing** applied lab.
-Read the lab brief alongside this repository; it explains the business, what you
-are being asked to deliver, and how your work is assessed.
+Repository for the **Code Quality & Testing** applied lab.
 
 ## What this is
 
-A small shipping-cost service that was written quickly with an AI assistant, together with the
-tests it produced. Everything compiles and the tests pass, so at a glance it
-looks finished. Your job is to bring it up to AmaliTech standard: judge what is
-actually wrong with the code **and** its tests, refactor it, make it genuinely
-testable, handle its failures properly, and replace the tests that only look
-like tests.
+A small shipping-cost service. It was first generated quickly with an AI assistant, with tests
+that passed without proving anything. This repository brings it up to AmaliTech standard.
+[ANALYSIS.md](ANALYSIS.md) records what was wrong with the inherited code and tests (written
+before any change) and, in its Decisions section, what was done about it and why.
+
+## How it is put together
+
+| Type | Job |
+| --- | --- |
+| `Shipment` | A validated request: zone, weight, service level |
+| `ServiceLevel` | Standard or express, and its price multiplier |
+| `ZonePricing` / `PerKilogramPricing` | The pricing rules of one zone |
+| `RateRepository` / `InMemoryRateRepository` | Where zone pricing is looked up |
+| `ShippingCalculator` | Combines zone cost, heavy-item surcharge and service level |
+| `FreightException` and subtypes | Every deliberate failure; nothing returns a made-up cost |
+
+To add a zone, register its pricing in `InMemoryRateRepository.withCurrentZones()`. The
+calculator does not change.
 
 ## Running it
 
 You need JDK 21 and Maven.
 
-**See the service run (a small demo, no tests):**
+**See the service run (a small demo):**
 
 ```bash
-mvn compile
-mvn exec:java -Dexec.mainClass=com.tidewater.freight.Demo
+mvn compile exec:java -Dexec.mainClass=com.tidewater.freight.Demo
 ```
 
-**Run the existing tests:**
+**Run the tests:**
 
 ```bash
 mvn test
 ```
 
-**Measure your tests** (coverage and mutation testing are already set up):
+**Run the full quality gate:**
 
 ```bash
-mvn verify                                                  # tests + JaCoCo report: target/site/jacoco/index.html
-mvn test-compile org.pitest:pitest-maven:mutationCoverage   # PIT report: target/pit-reports/index.html
+mvn verify
 ```
 
-Run the demo and the tests before you change anything. Note what the demo prints for an unknown zone,
-and look carefully at whether the tests that pass actually prove anything.
-
-## What to hand in
-
-See the lab brief for the full list: your written analysis (of the code and the
-tests), the refactored code, robust exception handling, a real test suite, a
-short rationale, and one improvement beyond the brief. You will talk through your
-work in a live review.
+`mvn verify` fails unless line and branch coverage are 100% and every PIT mutant is killed.
+Reports: `target/site/jacoco/index.html` and `target/pit-reports/index.html`.
