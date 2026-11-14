@@ -70,7 +70,38 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco.version}</version>
+                <configuration>
+                    <!-- Demo only prints sample quotes; it holds no business rule to protect. -->
+                    <excludes>
+                        <exclude>com/tidewater/freight/Demo.class</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
+                    <!-- Quality gate: mvn verify fails if any line or branch is left unexecuted. -->
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>1.00</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>1.00</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>prepare-agent</id>
                         <goals><goal>prepare-agent</goal></goals>
@@ -103,7 +134,19 @@
                     <targetTests>
                         <param>com.tidewater.freight.*</param>
                     </targetTests>
+                    <excludedClasses>
+                        <param>com.tidewater.freight.Demo</param>
+                    </excludedClasses>
+                    <!-- Quality gate: every mutant PIT plants must be killed by an assertion. -->
+                    <mutationThreshold>100</mutationThreshold>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>mutation-gate</id>
+                        <phase>verify</phase>
+                        <goals><goal>mutationCoverage</goal></goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
