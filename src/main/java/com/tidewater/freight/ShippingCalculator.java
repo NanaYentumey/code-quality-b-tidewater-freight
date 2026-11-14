@@ -1,39 +1,57 @@
 package com.tidewater.freight;
 
-public class ShippingCalculator {
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Objects;
 
-    // The calculator makes its own rate source, so callers and tests cannot give it another.
-    private final RateRepository repository = new InMemoryRateRepository();
+/**
+ * Works out what a shipment costs: the zone's base cost, plus the heavy-item surcharge, times the
+ * service level's multiplier, rounded to whole pesewas.
+ */
+public final class ShippingCalculator {
 
-    public double calculateCost(String zone, double weightKg, String serviceLevel) {
+    private static final BigDecimal HEAVY_ITEM_THRESHOLD_KG = new BigDecimal("30");
+    private static final BigDecimal HEAVY_ITEM_SURCHARGE = new BigDecimal("20.00");
+    private static final int CURRENCY_SCALE = 2;
+
+    private final RateRepository rates;
+
+    public ShippingCalculator(RateRepository rates) {
+        this.rates = Objects.requireNonNull(rates, "rates");
+    }
+
+    /**
+     * Calculates the cost of a shipment in GHS.
+     *
+     * @throws UnknownZoneException if the shipment's zone has no pricing
+     * @throws RateLookupException if the rate source fails or returns nothing
+     */
+    public BigDecimal calculateCost(Shipment shipment) {
+        Objects.requireNonNull(shipment, "shipment");
+        BigDecimal baseCost = findPricing(shipment.zone()).baseCost(shipment.weightKg());
+        BigDecimal costBeforeService = baseCost.add(heavyItemSurcharge(shipment.weightKg()));
+        return shipment.serviceLevel()
+                .applyTo(costBeforeService)
+                .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
+    }
+
+    private ZonePricing findPricing(String zone) {
+        ZonePricing pricing;
         try {
-            double rate = repository.findRate(zone);
-            double cost = rate * weightKg;
-
-            // zone-specific fees
-            if (zone.equals("DOMESTIC")) {
-                // no extra fee
-            } else if (zone.equals("REGIONAL")) {
-                cost = cost + 10; // handling fee
-            } else if (zone.equals("INTERNATIONAL")) {
-                cost = cost + 25; // customs handling
-            }
-
-            // heavy-item surcharge
-            if (weightKg > 30) {
-                cost = cost + 20;
-            }
-
-            // express costs more
-            if (serviceLevel.equals("EXPRESS")) {
-                cost = cost * 1.5;
-            }
-
-            System.out.println("Shipping " + zone + " (" + weightKg + "kg, " + serviceLevel + "): GHS " + cost);
-            return cost;
-        } catch (Exception e) {
-            // could not work out a rate (for example an unknown zone) - return zero
-            return 0;
+            pricing = rates.findPricing(zone);
+        } catch (FreightException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new RateLookupException("Could not look up pricing for zone " + zone, e);
         }
+        if (pricing == null) {
+            throw new RateLookupException("Rate source returned no pricing for zone " + zone);
+        }
+        return pricing;
+    }
+
+    private BigDecimal heavyItemSurcharge(BigDecimal weightKg) {
+        boolean isHeavy = weightKg.compareTo(HEAVY_ITEM_THRESHOLD_KG) > 0;
+        return isHeavy ? HEAVY_ITEM_SURCHARGE : BigDecimal.ZERO;
     }
 }
