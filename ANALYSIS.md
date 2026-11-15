@@ -168,13 +168,34 @@ produce a wrong price.
 
 Added after the work was done. Sections 1 to 5 above are unchanged from the first commit.
 
+### Corrections to the analysis
+
+Re-checking sections 1 to 5 against the starter (PIT's per-mutant report, and calling the
+starter's `calculateCost` directly) confirmed the findings and the ranking, but four details
+were imprecise. I have left the original text as written and record the corrections here.
+
+- **Finding 1, null zone.** A `null` zone never reaches `zone.equals(...)` on line 14: the
+  repository rejects it first with `IllegalArgumentException`, which is then swallowed to `0`.
+  The swallowed `NullPointerException` is real only for a `null` service level (line 28).
+- **Section 3, "PIT's three kills are all return 0 mutants".** Two are return-value mutants;
+  the third negates the repository's null check, which makes every zone "unknown". All three
+  make the result `0`, and all three are killed by `calculatesACost` alone.
+- **Section 3, "7 mutants have no coverage".** Four of those are in `ShippingCalculator`
+  (lines 18, 19, 24, 29: the `INTERNATIONAL` fee, the surcharge and the express multiplier).
+  The other three are the print statements in `Demo`.
+- **Finding 5, method length.** `calculateCost` runs from line 8 to line 38: 31 lines, not 30.
+
+Confirmed by running the starter: `DOMESTIC` -10 kg returns `-50.0`; `"EXPRES"` and
+`"express"` are both charged the standard `50.0` where express is `75.0`; a `null` zone, a
+`null` service level and `"domestic"` all return `0.0`.
+
 ## 6. Result
 
 | Check | Starter | Now |
 | --- | --- | --- |
 | Tests | 3 pass | 60 pass |
 | Line / branch coverage (excluding `Demo`) | 20 of 27 lines, 6 of 12 branches | 100% / 100% |
-| PIT mutants killed | 3 of 18 (17%) | 18 of 18 (100%) |
+| PIT mutants killed (starter count includes 3 in `Demo`; excluding them, 3 of 15) | 3 of 18 (17%) | 18 of 18 (100%) |
 | Demo, unknown zone `MOON` | `0.0` | `no quote: Unknown zone: MOON` |
 | Demo, known zones | `50.0`, `967.5` | `50.00`, `967.50` (same prices) |
 
