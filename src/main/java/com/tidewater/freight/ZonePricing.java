@@ -10,6 +10,6 @@ import java.math.BigDecimal;
  */
 public interface ZonePricing {
 
-    /** Cost of carrying this weight to the zone, zone fees included, before any surcharge. */
-    BigDecimal baseCost(BigDecimal weightKg);
+  /** Cost of carrying this weight to the zone, zone fees included, before any surcharge. */
+  BigDecimal baseCost(BigDecimal weightKg);
 }

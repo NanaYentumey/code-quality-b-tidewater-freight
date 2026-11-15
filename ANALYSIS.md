@@ -348,7 +348,10 @@ the tests, not by the gate.
 
 ## 13. Notes
 
-- Indentation is four spaces, as in the starter and the handbook's examples (§7.8 leaves the
-  width to the project); the column limit is 100 (§11.1).
+- Formatting follows the Google Java Style Guide, which §7.8 and §11.1 make the default: two
+  spaces per level, a 100-column limit. The code was formatted with google-java-format and
+  checked with Checkstyle's `google_checks`. The main code has no violations. The only
+  warnings left are on 22 test names such as `rejectsAMissingRate`, where the check mistakes
+  the word "a" followed by a capital for an abbreviation.
 - Mockito prints a JDK warning about self-attaching its agent. It does not affect results; I
   left the build configuration for it alone.

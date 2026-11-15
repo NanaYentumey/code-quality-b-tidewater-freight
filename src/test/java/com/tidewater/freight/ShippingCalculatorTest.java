@@ -16,141 +16,136 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * The calculator on its own. The rate source is a mock, so every expected cost below follows
- * from the pricing stubbed in the same test and from the calculator's own rules.
+ * The calculator on its own. The rate source is a mock, so every expected cost below follows from
+ * the pricing stubbed in the same test and from the calculator's own rules.
  */
 @ExtendWith(MockitoExtension.class)
 class ShippingCalculatorTest {
 
-    private static final ZonePricing FIVE_PER_KG_NO_FEE = PerKilogramPricing.of("5.00", "0.00");
+  private static final ZonePricing FIVE_PER_KG_NO_FEE = PerKilogramPricing.of("5.00", "0.00");
 
-    @Mock
-    private RateRepository rates;
+  @Mock private RateRepository rates;
 
-    private ShippingCalculator calculator;
+  private ShippingCalculator calculator;
 
-    @BeforeEach
-    void createCalculator() {
-        calculator = new ShippingCalculator(rates);
-    }
+  @BeforeEach
+  void createCalculator() {
+    calculator = new ShippingCalculator(rates);
+  }
 
-    @Test
-    void chargesTheZoneRateForEachKilogram() {
-        when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
+  @Test
+  void chargesTheZoneRateForEachKilogram() {
+    when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
 
-        BigDecimal cost = calculator.calculateCost(standard("DOMESTIC", "10"));
+    BigDecimal cost = calculator.calculateCost(standard("DOMESTIC", "10"));
 
-        assertEquals(new BigDecimal("50.00"), cost);
-    }
+    assertEquals(new BigDecimal("50.00"), cost);
+  }
 
-    @Test
-    void includesTheZoneHandlingFee() {
-        when(rates.findPricing("REGIONAL")).thenReturn(PerKilogramPricing.of("8.00", "10.00"));
+  @Test
+  void includesTheZoneHandlingFee() {
+    when(rates.findPricing("REGIONAL")).thenReturn(PerKilogramPricing.of("8.00", "10.00"));
 
-        BigDecimal cost = calculator.calculateCost(standard("REGIONAL", "5"));
+    BigDecimal cost = calculator.calculateCost(standard("REGIONAL", "5"));
 
-        assertEquals(new BigDecimal("50.00"), cost);
-    }
+    assertEquals(new BigDecimal("50.00"), cost);
+  }
 
-    @ParameterizedTest(name = "{0} kg costs {1}")
-    @CsvSource({
-        "29.99, 149.95",
-        "30,    150.00",
-        "30.01, 170.05",
-        "40,    220.00"
-    })
-    void addsTheHeavyItemSurchargeOnlyAboveThirtyKilograms(String weightKg, String expectedCost) {
-        when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
+  @ParameterizedTest(name = "{0} kg costs {1}")
+  @CsvSource({"29.99, 149.95", "30,    150.00", "30.01, 170.05", "40,    220.00"})
+  void addsTheHeavyItemSurchargeOnlyAboveThirtyKilograms(String weightKg, String expectedCost) {
+    when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
 
-        BigDecimal cost = calculator.calculateCost(standard("DOMESTIC", weightKg));
+    BigDecimal cost = calculator.calculateCost(standard("DOMESTIC", weightKg));
 
-        assertEquals(new BigDecimal(expectedCost), cost);
-    }
+    assertEquals(new BigDecimal(expectedCost), cost);
+  }
 
-    @Test
-    void expressMultipliesTheFeeAndSurchargeAsWellAsTheRate() {
-        when(rates.findPricing("INTERNATIONAL"))
-                .thenReturn(PerKilogramPricing.of("15.00", "25.00"));
-        Shipment heavyExpress =
-                new Shipment("INTERNATIONAL", new BigDecimal("40"), ServiceLevel.EXPRESS);
+  @Test
+  void expressMultipliesTheFeeAndSurchargeAsWellAsTheRate() {
+    when(rates.findPricing("INTERNATIONAL")).thenReturn(PerKilogramPricing.of("15.00", "25.00"));
+    Shipment heavyExpress =
+        new Shipment("INTERNATIONAL", new BigDecimal("40"), ServiceLevel.EXPRESS);
 
-        BigDecimal cost = calculator.calculateCost(heavyExpress);
+    BigDecimal cost = calculator.calculateCost(heavyExpress);
 
-        assertEquals(new BigDecimal("967.50"), cost);
-    }
+    assertEquals(new BigDecimal("967.50"), cost);
+  }
 
-    @Test
-    void roundsHalfAPesewaUp() {
-        when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
-        Shipment shipment = new Shipment("DOMESTIC", new BigDecimal("1.11"), ServiceLevel.EXPRESS);
+  @Test
+  void roundsHalfAPesewaUp() {
+    when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
+    Shipment shipment = new Shipment("DOMESTIC", new BigDecimal("1.11"), ServiceLevel.EXPRESS);
 
-        BigDecimal cost = calculator.calculateCost(shipment);
+    BigDecimal cost = calculator.calculateCost(shipment);
 
-        assertEquals(new BigDecimal("8.33"), cost);
-    }
+    assertEquals(new BigDecimal("8.33"), cost);
+  }
 
-    @Test
-    void pricesAZoneWithItsOwnKindOfRuleWithoutAnyChangeToTheCalculator() {
-        ZonePricing flatNinetyNine = weightKg -> new BigDecimal("99.00");
-        when(rates.findPricing("ISLAND")).thenReturn(flatNinetyNine);
+  @Test
+  void pricesAZoneWithItsOwnKindOfRuleWithoutAnyChangeToTheCalculator() {
+    ZonePricing flatNinetyNine = weightKg -> new BigDecimal("99.00");
+    when(rates.findPricing("ISLAND")).thenReturn(flatNinetyNine);
 
-        BigDecimal cost = calculator.calculateCost(standard("ISLAND", "12"));
+    BigDecimal cost = calculator.calculateCost(standard("ISLAND", "12"));
 
-        assertEquals(new BigDecimal("99.00"), cost);
-    }
+    assertEquals(new BigDecimal("99.00"), cost);
+  }
 
-    @Test
-    void letsAnUnknownZoneFailureReachTheCaller() {
-        UnknownZoneException unknownZone = new UnknownZoneException("MOON");
-        when(rates.findPricing("MOON")).thenThrow(unknownZone);
+  @Test
+  void letsAnUnknownZoneFailureReachTheCaller() {
+    UnknownZoneException unknownZone = new UnknownZoneException("MOON");
+    when(rates.findPricing("MOON")).thenThrow(unknownZone);
 
-        UnknownZoneException failure = assertThrows(UnknownZoneException.class,
-                () -> calculator.calculateCost(standard("MOON", "10")));
+    UnknownZoneException failure =
+        assertThrows(
+            UnknownZoneException.class, () -> calculator.calculateCost(standard("MOON", "10")));
 
-        assertSame(unknownZone, failure);
-    }
+    assertSame(unknownZone, failure);
+  }
 
-    @Test
-    void wrapsARateSourceFailureAndKeepsItsCause() {
-        IllegalStateException connectionLost = new IllegalStateException("connection lost");
-        when(rates.findPricing("DOMESTIC")).thenThrow(connectionLost);
+  @Test
+  void wrapsARateSourceFailureAndKeepsItsCause() {
+    IllegalStateException connectionLost = new IllegalStateException("connection lost");
+    when(rates.findPricing("DOMESTIC")).thenThrow(connectionLost);
 
-        RateLookupException failure = assertThrows(RateLookupException.class,
-                () -> calculator.calculateCost(standard("DOMESTIC", "10")));
+    RateLookupException failure =
+        assertThrows(
+            RateLookupException.class, () -> calculator.calculateCost(standard("DOMESTIC", "10")));
 
-        assertAll(
-                () -> assertEquals("Could not look up pricing for zone DOMESTIC",
-                        failure.getMessage()),
-                () -> assertSame(connectionLost, failure.getCause()));
-    }
+    assertAll(
+        () -> assertEquals("Could not look up pricing for zone DOMESTIC", failure.getMessage()),
+        () -> assertSame(connectionLost, failure.getCause()));
+  }
 
-    @Test
-    void refusesToPriceWhenTheRateSourceReturnsNothing() {
-        when(rates.findPricing("DOMESTIC")).thenReturn(null);
+  @Test
+  void refusesToPriceWhenTheRateSourceReturnsNothing() {
+    when(rates.findPricing("DOMESTIC")).thenReturn(null);
 
-        RateLookupException failure = assertThrows(RateLookupException.class,
-                () -> calculator.calculateCost(standard("DOMESTIC", "10")));
+    RateLookupException failure =
+        assertThrows(
+            RateLookupException.class, () -> calculator.calculateCost(standard("DOMESTIC", "10")));
 
-        assertEquals("Rate source returned no pricing for zone DOMESTIC", failure.getMessage());
-    }
+    assertEquals("Rate source returned no pricing for zone DOMESTIC", failure.getMessage());
+  }
 
-    @Test
-    void rejectsAMissingShipment() {
-        NullPointerException failure = assertThrows(NullPointerException.class,
-                () -> calculator.calculateCost(null));
+  @Test
+  void rejectsAMissingShipment() {
+    NullPointerException failure =
+        assertThrows(NullPointerException.class, () -> calculator.calculateCost(null));
 
-        assertEquals("shipment", failure.getMessage());
-    }
+    assertEquals("shipment", failure.getMessage());
+  }
 
-    @Test
-    void rejectsAMissingRateSource() {
-        NullPointerException failure = assertThrows(NullPointerException.class,
-                () -> new ShippingCalculator(null));
+  @Test
+  void rejectsAMissingRateSource() {
+    NullPointerException failure =
+        assertThrows(NullPointerException.class, () -> new ShippingCalculator(null));
 
-        assertEquals("rates", failure.getMessage());
-    }
+    assertEquals("rates", failure.getMessage());
+  }
 
-    private static Shipment standard(String zone, String weightKg) {
-        return new Shipment(zone, new BigDecimal(weightKg), ServiceLevel.STANDARD);
-    }
+  private static Shipment standard(String zone, String weightKg) {
+    return new Shipment(zone, new BigDecimal(weightKg), ServiceLevel.STANDARD);
+  }
 }

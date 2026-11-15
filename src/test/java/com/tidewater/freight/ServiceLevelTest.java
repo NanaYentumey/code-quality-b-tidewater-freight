@@ -13,42 +13,42 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ServiceLevelTest {
 
-    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100.00");
+  private static final BigDecimal ONE_HUNDRED = new BigDecimal("100.00");
 
-    @Test
-    void standardLeavesTheCostUnchanged() {
-        assertAmount("100.00", ServiceLevel.STANDARD.applyTo(ONE_HUNDRED));
-    }
+  @Test
+  void standardLeavesTheCostUnchanged() {
+    assertAmount("100.00", ServiceLevel.STANDARD.applyTo(ONE_HUNDRED));
+  }
 
-    @Test
-    void expressAddsHalfAgain() {
-        assertAmount("150.00", ServiceLevel.EXPRESS.applyTo(ONE_HUNDRED));
-    }
+  @Test
+  void expressAddsHalfAgain() {
+    assertAmount("150.00", ServiceLevel.EXPRESS.applyTo(ONE_HUNDRED));
+  }
 
-    @Test
-    void readsAServiceLevelFromItsCode() {
-        assertAll(
-                () -> assertEquals(ServiceLevel.STANDARD, ServiceLevel.fromCode("STANDARD")),
-                () -> assertEquals(ServiceLevel.EXPRESS, ServiceLevel.fromCode("EXPRESS")));
-    }
+  @Test
+  void readsAServiceLevelFromItsCode() {
+    assertAll(
+        () -> assertEquals(ServiceLevel.STANDARD, ServiceLevel.fromCode("STANDARD")),
+        () -> assertEquals(ServiceLevel.EXPRESS, ServiceLevel.fromCode("EXPRESS")));
+  }
 
-    @ParameterizedTest
-    @ValueSource(strings = {"EXPRES", "express", "OVERNIGHT", ""})
-    void rejectsACodeThatIsNotAServiceLevel(String code) {
-        UnknownServiceLevelException failure = assertThrows(UnknownServiceLevelException.class,
-                () -> ServiceLevel.fromCode(code));
+  @ParameterizedTest
+  @ValueSource(strings = {"EXPRES", "express", "OVERNIGHT", ""})
+  void rejectsACodeThatIsNotAServiceLevel(String code) {
+    UnknownServiceLevelException failure =
+        assertThrows(UnknownServiceLevelException.class, () -> ServiceLevel.fromCode(code));
 
-        assertAll(
-                () -> assertEquals("Unknown service level: " + code, failure.getMessage()),
-                () -> assertEquals(code, failure.code()),
-                () -> assertInstanceOf(IllegalArgumentException.class, failure.getCause()));
-    }
+    assertAll(
+        () -> assertEquals("Unknown service level: " + code, failure.getMessage()),
+        () -> assertEquals(code, failure.code()),
+        () -> assertInstanceOf(IllegalArgumentException.class, failure.getCause()));
+  }
 
-    @Test
-    void rejectsAMissingCode() {
-        InvalidShipmentException failure = assertThrows(InvalidShipmentException.class,
-                () -> ServiceLevel.fromCode(null));
+  @Test
+  void rejectsAMissingCode() {
+    InvalidShipmentException failure =
+        assertThrows(InvalidShipmentException.class, () -> ServiceLevel.fromCode(null));
 
-        assertEquals("Service level is required", failure.getMessage());
-    }
+    assertEquals("Service level is required", failure.getMessage());
+  }
 }
