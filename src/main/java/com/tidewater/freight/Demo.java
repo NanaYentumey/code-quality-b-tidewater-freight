@@ -8,6 +8,7 @@ public final class Demo {
     private Demo() {
     }
 
+    /** Prices three sample shipments and prints each quote, or the reason there is none. */
     public static void main(String[] args) {
         ShippingCalculator calculator =
                 new ShippingCalculator(InMemoryRateRepository.withCurrentZones());

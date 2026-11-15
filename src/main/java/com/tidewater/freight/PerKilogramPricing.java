@@ -6,6 +6,12 @@ import java.math.BigDecimal;
 public record PerKilogramPricing(BigDecimal ratePerKg, BigDecimal handlingFee)
         implements ZonePricing {
 
+    /**
+     * Checks the pricing before it can exist.
+     *
+     * @throws IllegalArgumentException if the rate is missing or not positive, or the handling
+     *     fee is missing or negative
+     */
     public PerKilogramPricing {
         if (ratePerKg == null || ratePerKg.signum() <= 0) {
             throw new IllegalArgumentException(
