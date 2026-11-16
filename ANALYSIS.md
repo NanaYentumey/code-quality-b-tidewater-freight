@@ -193,9 +193,9 @@ Confirmed by running the starter: `DOMESTIC` -10 kg returns `-50.0`; `"EXPRES"` 
 
 | Check | Starter | Now |
 | --- | --- | --- |
-| Tests | 3 pass | 60 pass |
+| Tests | 3 pass | 64 pass |
 | Line / branch coverage (excluding `Demo`) | 20 of 27 lines, 6 of 12 branches | 100% / 100% |
-| PIT mutants killed (starter count includes 3 in `Demo`; excluding them, 3 of 15) | 3 of 18 (17%) | 18 of 18 (100%) |
+| PIT mutants killed (starter count includes 3 in `Demo`; excluding them, 3 of 15) | 3 of 18 (17%) | 39 of 39 (100%) |
 | Demo, unknown zone `MOON` | `0.0` | `no quote: Unknown zone: MOON` |
 | Demo, known zones | `50.0`, `967.5` | `50.00`, `967.50` (same prices) |
 
@@ -267,6 +267,7 @@ an entry cannot be half-added the way the old "rate here, fee there" could.
 | Blank zone, missing or non-positive weight, missing service level | negative cost, or `0` | `InvalidShipmentException` with the reason |
 | Rate source throws something unexpected | cost `0` | `RateLookupException`, with the zone in the message and the original as cause (§6.3) |
 | Rate source returns `null` | cost `0` | `RateLookupException` |
+| A zone's pricing rule returns a negative cost or `null` | not possible (no plug-in point) | `RateLookupException` naming the zone and the value |
 
 - All extend `FreightException`. The hierarchy has one purpose: a caller can tell "the request
   was wrong" (`InvalidShipmentException` and its two subtypes) from "we could not answer"
@@ -341,10 +342,29 @@ checks the thing §9 actually asks for, that an assertion would fail if the beha
 and it checks it on every build, including for whoever adds the new zone. If their test executes
 the new pricing without asserting its result, the build breaks.
 
-Cost and limits: `mvn verify` is slower, because PIT re-runs tests against each of the 18
+Cost and limits: `mvn verify` is slower, because PIT re-runs tests against each of the 39
 mutants. `Demo` is excluded from both gates because it only prints. PIT's default mutators do
 not alter constants, so the exact values of rates and fees are protected by the price tables in
 the tests, not by the gate.
+
+**A hole in the gate that I found and closed.** Auditing the gate itself showed that PIT, by
+default, skips the constructors of records. That is exactly where `Shipment` and
+`PerKilogramPricing` validate their input, so the fix for finding 2 was being tested but not
+enforced: the first version of the gate reported "18 of 18" while generating no mutants there
+at all. The filter is now switched off (`-FRECORD`), leaving out only the `equals`, `hashCode`
+and `toString` methods the compiler generates. The gate went from 18 mutants to 39, all killed
+by the tests that already existed plus one new test for the pricing record's accessors.
+
+**Checked beyond the gate.** As a one-off, I ran PIT with its full mutator set, which also
+changes constants, removes calls and replaces return values: 156 mutants, 156 killed. And I
+called every failure path directly (unknown zone, bad weight, bad service level, failing or
+empty rate source, faulty zone rule): each one throws a named exception, and none returns a
+value. That check found one gap, a custom `ZonePricing` returning a negative cost, which the
+calculator now rejects.
+
+One behaviour I left alone and want to be open about: a very small valid weight can round to a
+cost of `0.00` (0.0001 kg to `DOMESTIC` is GHS 0.0005). That is correct arithmetic, not a
+swallowed failure, and whether Tidewater wants a minimum charge is a business decision.
 
 ## 13. Notes
 
