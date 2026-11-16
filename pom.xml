@@ -137,6 +137,18 @@
                     <excludedClasses>
                         <param>com.tidewater.freight.Demo</param>
                     </excludedClasses>
+                    <!-- PIT skips record constructors by default, which is where Shipment and
+                         PerKilogramPricing validate their input. Switch that filter off so the
+                         validation is under the gate, and leave out only the methods the compiler
+                         generates for a record. -->
+                    <features>
+                        <feature>-FRECORD</feature>
+                    </features>
+                    <excludedMethods>
+                        <param>equals</param>
+                        <param>hashCode</param>
+                        <param>toString</param>
+                    </excludedMethods>
                     <!-- Quality gate: every mutant PIT plants must be killed by an assertion. -->
                     <mutationThreshold>100</mutationThreshold>
                 </configuration>

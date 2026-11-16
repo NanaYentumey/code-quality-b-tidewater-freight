@@ -1,6 +1,7 @@
 package com.tidewater.freight;
 
 import static com.tidewater.freight.MoneyAssertions.assertAmount;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -23,6 +24,15 @@ class PerKilogramPricingTest {
     ZonePricing pricing = PerKilogramPricing.of("5.00", "0.00");
 
     assertAmount("12.50", pricing.baseCost(new BigDecimal("2.5")));
+  }
+
+  @Test
+  void keepsItsRateAndHandlingFee() {
+    PerKilogramPricing pricing = PerKilogramPricing.of("8.00", "10.00");
+
+    assertAll(
+        () -> assertEquals(new BigDecimal("8.00"), pricing.ratePerKg()),
+        () -> assertEquals(new BigDecimal("10.00"), pricing.handlingFee()));
   }
 
   @Test
