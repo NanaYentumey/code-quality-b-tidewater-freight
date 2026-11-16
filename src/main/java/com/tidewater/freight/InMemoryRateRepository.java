@@ -11,15 +11,6 @@ public final class InMemoryRateRepository implements RateRepository {
     this.pricingByZone = Map.copyOf(pricingByZone);
   }
 
-  /** The zones Tidewater ships to today. A new zone is one more entry here. */
-  public static InMemoryRateRepository withCurrentZones() {
-    return new InMemoryRateRepository(
-        Map.of(
-            "DOMESTIC", PerKilogramPricing.of("5.00", "0.00"),
-            "REGIONAL", PerKilogramPricing.of("8.00", "10.00"),
-            "INTERNATIONAL", PerKilogramPricing.of("15.00", "25.00")));
-  }
-
   @Override
   public ZonePricing findPricing(String zone) {
     // An immutable map throws NullPointerException on get(null); a null zone is just unknown.

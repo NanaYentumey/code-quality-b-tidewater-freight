@@ -36,41 +36,51 @@ class PerKilogramPricingTest {
   }
 
   @Test
+  void refusesToPriceAMissingWeight() {
+    ZonePricing pricing = PerKilogramPricing.of("8.00", "10.00");
+
+    InvalidShipmentException failure =
+        assertThrows(InvalidShipmentException.class, () -> pricing.baseCost(null));
+
+    assertEquals("Weight is required", failure.getMessage());
+  }
+
+  @Test
   void rejectsAMissingRate() {
-    IllegalArgumentException failure =
-        assertThrows(IllegalArgumentException.class, () -> new PerKilogramPricing(null, ONE));
+    InvalidPricingException failure =
+        assertThrows(InvalidPricingException.class, () -> new PerKilogramPricing(null, ONE));
 
     assertEquals("Rate per kg must be greater than zero, but was null", failure.getMessage());
   }
 
   @Test
   void rejectsAZeroRate() {
-    IllegalArgumentException failure =
-        assertThrows(IllegalArgumentException.class, () -> PerKilogramPricing.of("0", "1"));
+    InvalidPricingException failure =
+        assertThrows(InvalidPricingException.class, () -> PerKilogramPricing.of("0", "1"));
 
     assertEquals("Rate per kg must be greater than zero, but was 0", failure.getMessage());
   }
 
   @Test
   void rejectsANegativeRate() {
-    IllegalArgumentException failure =
-        assertThrows(IllegalArgumentException.class, () -> PerKilogramPricing.of("-5", "1"));
+    InvalidPricingException failure =
+        assertThrows(InvalidPricingException.class, () -> PerKilogramPricing.of("-5", "1"));
 
     assertEquals("Rate per kg must be greater than zero, but was -5", failure.getMessage());
   }
 
   @Test
   void rejectsAMissingHandlingFee() {
-    IllegalArgumentException failure =
-        assertThrows(IllegalArgumentException.class, () -> new PerKilogramPricing(ONE, null));
+    InvalidPricingException failure =
+        assertThrows(InvalidPricingException.class, () -> new PerKilogramPricing(ONE, null));
 
     assertEquals("Handling fee must not be negative, but was null", failure.getMessage());
   }
 
   @Test
   void rejectsANegativeHandlingFee() {
-    IllegalArgumentException failure =
-        assertThrows(IllegalArgumentException.class, () -> PerKilogramPricing.of("5", "-0.01"));
+    InvalidPricingException failure =
+        assertThrows(InvalidPricingException.class, () -> PerKilogramPricing.of("5", "-0.01"));
 
     assertEquals("Handling fee must not be negative, but was -0.01", failure.getMessage());
   }

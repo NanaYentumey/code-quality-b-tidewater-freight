@@ -26,6 +26,11 @@ class ServiceLevelTest {
   }
 
   @Test
+  void rejectsAMissingCost() {
+    assertThrows(NullPointerException.class, () -> ServiceLevel.EXPRESS.applyTo(null));
+  }
+
+  @Test
   void readsAServiceLevelFromItsCode() {
     assertAll(
         () -> assertEquals(ServiceLevel.STANDARD, ServiceLevel.fromCode("STANDARD")),

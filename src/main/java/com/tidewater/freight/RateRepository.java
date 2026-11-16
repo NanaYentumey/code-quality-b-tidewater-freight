@@ -6,6 +6,7 @@ public interface RateRepository {
   /**
    * Finds the pricing rules for a destination zone.
    *
+   * @return the zone's pricing, never null
    * @throws UnknownZoneException if the zone has no pricing
    */
   ZonePricing findPricing(String zone);

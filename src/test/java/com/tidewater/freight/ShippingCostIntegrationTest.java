@@ -4,19 +4,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * The calculator wired to the real in-memory rates, with no mocks: Tidewater's published prices end
- * to end. A change to any rate, fee, surcharge or multiplier fails a row here.
+ * The calculator wired the way the application wires it, with no mocks: Tidewater's published
+ * prices end to end. A change to any rate, fee, surcharge or multiplier fails a row here.
  */
 class ShippingCostIntegrationTest {
 
-  private final ShippingCalculator calculator =
-      new ShippingCalculator(InMemoryRateRepository.withCurrentZones());
+  private final ShippingCalculator calculator = TidewaterPricing.newCalculator();
 
   @ParameterizedTest(name = "{0} {1} kg {2} costs GHS {3}")
   @CsvSource({
@@ -49,12 +49,11 @@ class ShippingCostIntegrationTest {
 
   @Test
   void quotesANewZoneOnceItsPricingIsRegistered() {
-    RateRepository ratesWithCoastal =
-        new InMemoryRateRepository(
-            Map.of(
-                "DOMESTIC", PerKilogramPricing.of("5.00", "0.00"),
-                "COASTAL", PerKilogramPricing.of("6.50", "4.00")));
-    ShippingCalculator coastalCalculator = new ShippingCalculator(ratesWithCoastal);
+    Map<String, ZonePricing> zonesWithCoastal = new HashMap<>(TidewaterPricing.currentZones());
+    zonesWithCoastal.put("COASTAL", PerKilogramPricing.of("6.50", "4.00"));
+    ShippingCalculator coastalCalculator =
+        new ShippingCalculator(
+            new InMemoryRateRepository(zonesWithCoastal), TidewaterPricing.heavyItemSurcharge());
     Shipment toTheCoast = new Shipment("COASTAL", new BigDecimal("10"), ServiceLevel.EXPRESS);
 
     assertEquals(new BigDecimal("103.50"), coastalCalculator.calculateCost(toTheCoast));

@@ -10,30 +10,23 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class InMemoryRateRepositoryTest {
 
-  private static final ZonePricing ANY_PRICING = PerKilogramPricing.of("1.00", "0.00");
+  private static final ZonePricing COASTAL_PRICING = PerKilogramPricing.of("6.50", "4.00");
 
-  @ParameterizedTest(name = "{0}: {1} per kg plus {2}")
-  @CsvSource({
-    "DOMESTIC,      5.00,  0.00",
-    "REGIONAL,      8.00,  10.00",
-    "INTERNATIONAL, 15.00, 25.00"
-  })
-  void holdsThePricingOfEachCurrentZone(String zone, String ratePerKg, String handlingFee) {
-    RateRepository rates = InMemoryRateRepository.withCurrentZones();
+  private final RateRepository rates =
+      new InMemoryRateRepository(Map.of("COASTAL", COASTAL_PRICING));
 
-    assertEquals(PerKilogramPricing.of(ratePerKg, handlingFee), rates.findPricing(zone));
+  @Test
+  void returnsThePricingItWasGivenForAZone() {
+    assertSame(COASTAL_PRICING, rates.findPricing("COASTAL"));
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"MOON", "domestic", " DOMESTIC", ""})
+  @ValueSource(strings = {"MOON", "coastal", " COASTAL", ""})
   void rejectsAZoneItHasNoPricingFor(String zone) {
-    RateRepository rates = InMemoryRateRepository.withCurrentZones();
-
     UnknownZoneException failure =
         assertThrows(UnknownZoneException.class, () -> rates.findPricing(zone));
 
@@ -44,29 +37,22 @@ class InMemoryRateRepositoryTest {
 
   @Test
   void treatsAMissingZoneAsUnknown() {
-    RateRepository rates = InMemoryRateRepository.withCurrentZones();
-
     UnknownZoneException failure =
         assertThrows(UnknownZoneException.class, () -> rates.findPricing(null));
 
-    assertNull(failure.zone());
-  }
-
-  @Test
-  void returnsThePricingItWasGivenForAZone() {
-    RateRepository rates = new InMemoryRateRepository(Map.of("COASTAL", ANY_PRICING));
-
-    assertSame(ANY_PRICING, rates.findPricing("COASTAL"));
+    assertAll(
+        () -> assertEquals("Unknown zone: null", failure.getMessage()),
+        () -> assertNull(failure.zone()));
   }
 
   @Test
   void ignoresChangesMadeToTheMapAfterConstruction() {
     Map<String, ZonePricing> pricingByZone = new HashMap<>();
-    pricingByZone.put("COASTAL", ANY_PRICING);
-    RateRepository rates = new InMemoryRateRepository(pricingByZone);
+    pricingByZone.put("COASTAL", COASTAL_PRICING);
+    RateRepository builtFromAMutableMap = new InMemoryRateRepository(pricingByZone);
 
-    pricingByZone.put("ISLAND", ANY_PRICING);
+    pricingByZone.put("ISLAND", COASTAL_PRICING);
 
-    assertThrows(UnknownZoneException.class, () -> rates.findPricing("ISLAND"));
+    assertThrows(UnknownZoneException.class, () -> builtFromAMutableMap.findPricing("ISLAND"));
   }
 }

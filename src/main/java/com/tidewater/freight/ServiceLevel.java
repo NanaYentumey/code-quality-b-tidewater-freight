@@ -1,16 +1,17 @@
 package com.tidewater.freight;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 /** How quickly a shipment travels, and what that does to its price. */
 public enum ServiceLevel {
-  STANDARD("1.0"),
-  EXPRESS("1.5");
+  STANDARD(new BigDecimal("1.0")),
+  EXPRESS(new BigDecimal("1.5"));
 
   private final BigDecimal priceMultiplier;
 
-  ServiceLevel(String priceMultiplier) {
-    this.priceMultiplier = new BigDecimal(priceMultiplier);
+  ServiceLevel(BigDecimal priceMultiplier) {
+    this.priceMultiplier = priceMultiplier;
   }
 
   /**
@@ -30,7 +31,8 @@ public enum ServiceLevel {
     }
   }
 
+  /** Multiplies a cost by this service level's multiplier. */
   public BigDecimal applyTo(BigDecimal cost) {
-    return cost.multiply(priceMultiplier);
+    return Objects.requireNonNull(cost, "cost").multiply(priceMultiplier);
   }
 }

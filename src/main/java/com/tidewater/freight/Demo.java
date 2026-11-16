@@ -9,8 +9,7 @@ public final class Demo {
 
   /** Prices three sample shipments and prints each quote, or the reason there is none. */
   public static void main(String[] args) {
-    ShippingCalculator calculator =
-        new ShippingCalculator(InMemoryRateRepository.withCurrentZones());
+    ShippingCalculator calculator = TidewaterPricing.newCalculator();
 
     printQuote(calculator, shipment("DOMESTIC", "10", ServiceLevel.STANDARD));
     printQuote(calculator, shipment("INTERNATIONAL", "40", ServiceLevel.EXPRESS));
@@ -28,6 +27,7 @@ public final class Demo {
       System.out.println(description + " -> GHS " + calculator.calculateCost(shipment));
     } catch (FreightException e) {
       // The demo is the top of the program: here a failed quote can be reported to the user.
+      // A console line is enough for a demo; a real service would log this instead.
       System.out.println(description + " -> no quote: " + e.getMessage());
     }
   }

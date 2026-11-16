@@ -10,19 +10,20 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * The calculator on its own. The rate source is a mock, so every expected cost below follows from
- * the pricing stubbed in the same test and from the calculator's own rules.
+ * The calculator on its own. The rate source is a mock and the surcharge policy is a one-line
+ * stand-in, so every expected cost below follows from what the same test supplies and from the
+ * calculator's own rules: add the parts, apply the service level, round.
  */
 @ExtendWith(MockitoExtension.class)
 class ShippingCalculatorTest {
 
   private static final ZonePricing FIVE_PER_KG_NO_FEE = PerKilogramPricing.of("5.00", "0.00");
+  private static final SurchargePolicy NO_SURCHARGE = shipment -> BigDecimal.ZERO;
+  private static final SurchargePolicy TWENTY_SURCHARGE = shipment -> new BigDecimal("20.00");
 
   @Mock private RateRepository rates;
 
@@ -30,7 +31,7 @@ class ShippingCalculatorTest {
 
   @BeforeEach
   void createCalculator() {
-    calculator = new ShippingCalculator(rates);
+    calculator = new ShippingCalculator(rates, NO_SURCHARGE);
   }
 
   @Test
@@ -51,23 +52,24 @@ class ShippingCalculatorTest {
     assertEquals(new BigDecimal("50.00"), cost);
   }
 
-  @ParameterizedTest(name = "{0} kg costs {1}")
-  @CsvSource({"29.99, 149.95", "30,    150.00", "30.01, 170.05", "40,    220.00"})
-  void addsTheHeavyItemSurchargeOnlyAboveThirtyKilograms(String weightKg, String expectedCost) {
+  @Test
+  void addsTheSurchargeThePolicyGives() {
     when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
+    ShippingCalculator withSurcharge = new ShippingCalculator(rates, TWENTY_SURCHARGE);
 
-    BigDecimal cost = calculator.calculateCost(standard("DOMESTIC", weightKg));
+    BigDecimal cost = withSurcharge.calculateCost(standard("DOMESTIC", "10"));
 
-    assertEquals(new BigDecimal(expectedCost), cost);
+    assertEquals(new BigDecimal("70.00"), cost);
   }
 
   @Test
   void expressMultipliesTheFeeAndSurchargeAsWellAsTheRate() {
     when(rates.findPricing("INTERNATIONAL")).thenReturn(PerKilogramPricing.of("15.00", "25.00"));
+    ShippingCalculator withSurcharge = new ShippingCalculator(rates, TWENTY_SURCHARGE);
     Shipment heavyExpress =
         new Shipment("INTERNATIONAL", new BigDecimal("40"), ServiceLevel.EXPRESS);
 
-    BigDecimal cost = calculator.calculateCost(heavyExpress);
+    BigDecimal cost = withSurcharge.calculateCost(heavyExpress);
 
     assertEquals(new BigDecimal("967.50"), cost);
   }
@@ -83,13 +85,17 @@ class ShippingCalculatorTest {
   }
 
   @Test
-  void pricesAZoneWithItsOwnKindOfRuleWithoutAnyChangeToTheCalculator() {
-    ZonePricing flatNinetyNine = weightKg -> new BigDecimal("99.00");
-    when(rates.findPricing("ISLAND")).thenReturn(flatNinetyNine);
+  void pricesWithAZoneRuleThatIsNotPerKilogram() {
+    BigDecimal minimumCharge = new BigDecimal("50.00");
+    ZonePricing threePerKgWithAMinimum =
+        weightKg -> new BigDecimal("3.00").multiply(weightKg).max(minimumCharge);
+    when(rates.findPricing("ISLAND")).thenReturn(threePerKgWithAMinimum);
 
-    BigDecimal cost = calculator.calculateCost(standard("ISLAND", "12"));
-
-    assertEquals(new BigDecimal("99.00"), cost);
+    assertAll(
+        () -> assertEquals(minimumCharge, calculator.calculateCost(standard("ISLAND", "12"))),
+        () ->
+            assertEquals(
+                new BigDecimal("60.00"), calculator.calculateCost(standard("ISLAND", "20"))));
   }
 
   @Test
@@ -164,19 +170,45 @@ class ShippingCalculatorTest {
   }
 
   @Test
-  void rejectsAMissingShipment() {
-    NullPointerException failure =
-        assertThrows(NullPointerException.class, () -> calculator.calculateCost(null));
+  void refusesToQuoteANegativeSurchargeFromAFaultyPolicy() {
+    when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
+    ShippingCalculator withFaultyPolicy =
+        new ShippingCalculator(rates, shipment -> new BigDecimal("-0.01"));
 
-    assertEquals("shipment", failure.getMessage());
+    RateLookupException failure =
+        assertThrows(
+            RateLookupException.class,
+            () -> withFaultyPolicy.calculateCost(standard("DOMESTIC", "10")));
+
+    assertEquals("Surcharge policy gave an invalid surcharge: -0.01", failure.getMessage());
+  }
+
+  @Test
+  void refusesToQuoteWhenThePolicyGivesNoSurcharge() {
+    when(rates.findPricing("DOMESTIC")).thenReturn(FIVE_PER_KG_NO_FEE);
+    ShippingCalculator withFaultyPolicy = new ShippingCalculator(rates, shipment -> null);
+
+    RateLookupException failure =
+        assertThrows(
+            RateLookupException.class,
+            () -> withFaultyPolicy.calculateCost(standard("DOMESTIC", "10")));
+
+    assertEquals("Surcharge policy gave an invalid surcharge: null", failure.getMessage());
+  }
+
+  @Test
+  void rejectsAMissingShipment() {
+    assertThrows(NullPointerException.class, () -> calculator.calculateCost(null));
   }
 
   @Test
   void rejectsAMissingRateSource() {
-    NullPointerException failure =
-        assertThrows(NullPointerException.class, () -> new ShippingCalculator(null));
+    assertThrows(NullPointerException.class, () -> new ShippingCalculator(null, NO_SURCHARGE));
+  }
 
-    assertEquals("rates", failure.getMessage());
+  @Test
+  void rejectsAMissingSurchargePolicy() {
+    assertThrows(NullPointerException.class, () -> new ShippingCalculator(rates, null));
   }
 
   private static Shipment standard(String zone, String weightKg) {
