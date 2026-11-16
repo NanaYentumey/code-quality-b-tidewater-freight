@@ -24,16 +24,27 @@ public final class ShippingCalculator {
    * Calculates the cost of a shipment in GHS.
    *
    * @throws UnknownZoneException if the shipment's zone has no pricing
-   * @throws RateLookupException if the rate source fails or returns nothing
+   * @throws RateLookupException if the rate source fails or returns nothing, or the zone's pricing
+   *     gives no cost or a negative one
    */
   public BigDecimal calculateCost(Shipment shipment) {
     Objects.requireNonNull(shipment, "shipment");
-    BigDecimal baseCost = findPricing(shipment.zone()).baseCost(shipment.weightKg());
-    BigDecimal costBeforeService = baseCost.add(heavyItemSurcharge(shipment.weightKg()));
+    BigDecimal costBeforeService =
+        baseCostOf(shipment).add(heavyItemSurcharge(shipment.weightKg()));
     return shipment
         .serviceLevel()
         .applyTo(costBeforeService)
         .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal baseCostOf(Shipment shipment) {
+    BigDecimal baseCost = findPricing(shipment.zone()).baseCost(shipment.weightKg());
+    // A zone's pricing is a plug-in point; a faulty rule must not become a negative quote.
+    if (baseCost == null || baseCost.signum() < 0) {
+      throw new RateLookupException(
+          "Pricing for zone " + shipment.zone() + " gave an invalid base cost: " + baseCost);
+    }
+    return baseCost;
   }
 
   private ZonePricing findPricing(String zone) {

@@ -130,6 +130,40 @@ class ShippingCalculatorTest {
   }
 
   @Test
+  void refusesToQuoteANegativeBaseCostFromAFaultyZoneRule() {
+    ZonePricing faultyRule = weightKg -> new BigDecimal("-0.01");
+    when(rates.findPricing("ISLAND")).thenReturn(faultyRule);
+
+    RateLookupException failure =
+        assertThrows(
+            RateLookupException.class, () -> calculator.calculateCost(standard("ISLAND", "10")));
+
+    assertEquals("Pricing for zone ISLAND gave an invalid base cost: -0.01", failure.getMessage());
+  }
+
+  @Test
+  void refusesToQuoteWhenAZoneRuleGivesNoBaseCost() {
+    ZonePricing faultyRule = weightKg -> null;
+    when(rates.findPricing("ISLAND")).thenReturn(faultyRule);
+
+    RateLookupException failure =
+        assertThrows(
+            RateLookupException.class, () -> calculator.calculateCost(standard("ISLAND", "10")));
+
+    assertEquals("Pricing for zone ISLAND gave an invalid base cost: null", failure.getMessage());
+  }
+
+  @Test
+  void acceptsAZoneRuleWhoseBaseCostIsZero() {
+    ZonePricing freeZone = weightKg -> BigDecimal.ZERO;
+    when(rates.findPricing("DEPOT")).thenReturn(freeZone);
+
+    BigDecimal cost = calculator.calculateCost(standard("DEPOT", "10"));
+
+    assertEquals(new BigDecimal("0.00"), cost);
+  }
+
+  @Test
   void rejectsAMissingShipment() {
     NullPointerException failure =
         assertThrows(NullPointerException.class, () -> calculator.calculateCost(null));
