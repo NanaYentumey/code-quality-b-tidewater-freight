@@ -1,5 +1,7 @@
 # Tidewater Freight — Shipping Cost Service
 
+[![CI](https://github.com/NanaYentumey/code-quality-b-tidewater-freight/actions/workflows/ci.yml/badge.svg)](https://github.com/NanaYentumey/code-quality-b-tidewater-freight/actions/workflows/ci.yml)
+
 Repository for the **Code Quality & Testing** applied lab.
 
 ## What this is
@@ -47,3 +49,6 @@ mvn verify
 
 `mvn verify` fails unless line and branch coverage are 100% and every PIT mutant is killed.
 Reports: `target/site/jacoco/index.html` and `target/pit-reports/index.html`.
+
+The same command runs on GitHub Actions for every push to `main` and every pull request; the
+badge at the top shows the result of the latest run.

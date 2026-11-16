@@ -335,6 +335,11 @@ I tried one myself: changing the heavy-item check from `> 30` to `>= 30` failed
 PIT mutant is killed (`mutationThreshold` 100). Both tools were in the starter's `pom.xml`, but
 only as reports nobody had to read.
 
+The gate also runs on GitHub Actions (`.github/workflows/ci.yml`) for every push to `main` and
+every pull request, on a clean machine with JDK 21. A gate that only runs when someone remembers
+to run it locally is easy to skip; this way a change that weakens the tests shows as a failed
+build on the repository itself.
+
 Why this one, for this code: the root problem I inherited was not a bad class, it was a green
 build that meant nothing. The AI's suite passed with 17% of mutants killed, and a coverage
 target alone would not have caught it (`assertNotNull(cost)` adds coverage). A mutation gate
